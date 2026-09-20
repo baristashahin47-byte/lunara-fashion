@@ -1,0 +1,6 @@
+{
+  "name": "Lunara Fashion - Women's Fashion Bangladesh",
+  "description": "Discover premier Bangladeshi women's fashion at Lunara Fashion. Shop 3-piece, sarees, abayas, kurtis, hijabs, bags, and jewellery in BDT (৳).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

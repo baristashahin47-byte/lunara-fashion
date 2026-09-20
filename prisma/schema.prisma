@@ -1,0 +1,312 @@
+// Prisma Schema for Lunara Fashion - Modern Women's Fashion E-Commerce (PostgreSQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  MANAGER
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  COD
+  BKASH
+  NAGAD
+  ROCKET
+  SSLCOMMERZ
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum DeliveryZone {
+  DHAKA_CITY      // ৳70
+  SUB_DHAKA       // ৳100 (Gazipur, Savar, Narayanganj, Keraniganj)
+  OUTSIDE_DHAKA   // ৳120
+}
+
+model User {
+  id            String      @id @default(uuid())
+  name          String
+  email         String      @unique
+  passwordHash  String
+  phone         String?
+  role          Role        @default(CUSTOMER)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  addresses     Address[]
+  orders        Order[]
+  cart          Cart?
+  wishlist      Wishlist?
+  reviews       Review[]
+
+  @@index([email])
+}
+
+model Address {
+  id           String       @id @default(uuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName     String
+  phone        String
+  division     String       // e.g., Dhaka, Chattogram, Rajshahi
+  district     String       // e.g., Dhaka, Gazipur
+  upazila      String?      // e.g., Dhanmondi, Mirpur, Uttara
+  fullAddress  String
+  deliveryZone DeliveryZone @default(DHAKA_CITY)
+  isDefault    Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  orders       Order[]
+
+  @@index([userId])
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  nameBn      String?   // Bengali Name (e.g., "থ্রি-পিস", "শাড়ি")
+  slug        String    @unique
+  description String?
+  image       String?
+  featured    Boolean   @default(false)
+  displayOrder Int      @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products    Product[]
+
+  @@index([slug])
+}
+
+model Product {
+  id             String         @id @default(uuid())
+  name           String
+  nameBn         String?
+  slug           String         @unique
+  description    String
+  categoryId     String
+  category       Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  price          Decimal        @db.Decimal(10, 2)
+  salePrice      Decimal?       @db.Decimal(10, 2)
+  discount       Int?           @default(0) // percentage
+  sku            String         @unique
+  stock          Int            @default(0)
+  sizes          String[]       // ["S", "M", "L", "XL", "XXL", "Free Size"]
+  colors         String[]       // ["Emerald Green", "Crimson Red", "Blush Pink"]
+  colorCodes     String[]       // ["#0F5132", "#842029", "#F8D7DA"]
+  images         String[]
+  rating         Float          @default(5.0)
+  reviewCount    Int            @default(0)
+  tags           String[]       // ["Festive", "Party Wear", "Lawn", "Cotton", "Jamdani"]
+  isFeatured     Boolean        @default(false)
+  isNewArrival   Boolean        @default(false)
+  isBestSeller   Boolean        @default(false)
+  isTrending     Boolean        @default(false)
+  isOnSale       Boolean        @default(false)
+  fabricDetails  String?
+  careInfo       String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  cartItems      CartItem[]
+  wishlistItems  WishlistItem[]
+  orderItems     OrderItem[]
+  reviews        Review[]
+
+  @@index([categoryId])
+  @@index([slug])
+  @@index([isFeatured, isNewArrival, isBestSeller, isTrending, isOnSale])
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  items     CartItem[]
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  size      String
+  color     String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, productId, size, color])
+  @@index([cartId])
+}
+
+model Wishlist {
+  id        String         @id @default(uuid())
+  userId    String         @unique
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  items     WishlistItem[]
+}
+
+model WishlistItem {
+  id         String   @id @default(uuid())
+  wishlistId String
+  wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([wishlistId, productId])
+  @@index([wishlistId])
+}
+
+model Order {
+  id             String               @id @default(uuid())
+  orderNumber    String               @unique // e.g., "LN-2026-89421"
+  userId         String?
+  user           User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  guestEmail     String?
+  customerName   String
+  customerPhone  String
+  shippingAddress String
+  division       String
+  district       String
+  upazila        String?
+  deliveryZone   DeliveryZone         @default(DHAKA_CITY)
+  deliveryNote   String?
+  addressId      String?
+  address        Address?             @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  subtotal       Decimal              @db.Decimal(10, 2)
+  deliveryFee    Decimal              @db.Decimal(10, 2)
+  discountAmount Decimal              @default(0) @db.Decimal(10, 2)
+  couponCode     String?
+  grandTotal     Decimal              @db.Decimal(10, 2)
+  paymentMethod  PaymentMethod        @default(COD)
+  paymentStatus  PaymentStatus        @default(UNPAID)
+  status         OrderStatus          @default(PENDING)
+  trackingNumber String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  items          OrderItem[]
+  statusHistory  OrderStatusHistory[]
+
+  @@index([orderNumber])
+  @@index([userId])
+  @@index([customerPhone])
+  @@index([status])
+}
+
+model OrderItem {
+  id          String   @id @default(uuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productName String
+  size        String
+  color       String
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  quantity    Int
+  totalPrice  Decimal  @db.Decimal(10, 2)
+
+  @@index([orderId])
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(uuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    OrderStatus
+  note      String?
+  updatedBy String?
+  createdAt DateTime    @default(now())
+
+  @@index([orderId])
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName  String
+  userCity  String?  @default("Dhaka")
+  rating    Int      @default(5)
+  comment   String
+  isVerified Boolean @default(true)
+  isApproved Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@index([rating])
+}
+
+model Coupon {
+  id           String     @id @default(uuid())
+  code         String     @unique
+  type         CouponType @default(PERCENTAGE)
+  discount     Decimal    @db.Decimal(10, 2)
+  minOrder     Decimal    @default(0) @db.Decimal(10, 2)
+  maxDiscount  Decimal?   @db.Decimal(10, 2)
+  expiry       DateTime?
+  usageLimit   Int?
+  timesUsed    Int        @default(0)
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([code])
+}
+
+model StoreSettings {
+  id               String   @id @default("default")
+  brandName        String   @default("LUNARA FASHION")
+  brandTagline     String   @default("Premier Bangladeshi Women's Fashion")
+  logoUrl          String?
+  currency         String   @default("BDT")
+  currencySymbol   String   @default("৳")
+  deliveryDhaka    Decimal  @default(70) @db.Decimal(10, 2)
+  deliverySubDhaka Decimal  @default(100) @db.Decimal(10, 2)
+  deliveryOutside  Decimal  @default(120) @db.Decimal(10, 2)
+  supportPhone     String   @default("+880 1712-345678")
+  supportEmail     String   @default("support@lunarafashion.com")
+  showroomAddress  String   @default("Road 11, Block D, Banani, Dhaka-1213, Bangladesh")
+  noticeBanner     String   @default("দেশজুড়ে ক্যাশ অন ডেলিভারি | ঢাকার ভেতরে ডেলিভারি মাত্র ৳৭০")
+  updatedAt        DateTime @updatedAt
+}
